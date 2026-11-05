@@ -5,7 +5,15 @@
 
 > Version your Mac workspace once. Reproduce it anywhere.
 
-A macOS workspace template and bootstrap utility for reproducing your setup on any new Mac or user account.
+## Every new Mac starts with the same scavenger hunt
+
+The new machine is ready. Your workspace is not. You remember the shell prompt you tuned just right, the editor settings that make you faster, the terminal shortcuts you use without thinking, and the small tools that quietly hold your day together. But they are scattered across an old Mac, half-remembered commands, and configuration folders you have not opened in months.
+
+So the rebuild begins: install a tool, search for a setting, copy a file, notice something missing, and repeat. A new user account turns into the same exercise. The setup works eventually, but it is never quite the setup you meant to keep.
+
+![A developer rebuilds a scattered setup on a new Mac, then uses Workframe to reproduce it anywhere.](assets/workframe-storyboard.png)
+
+Workframe gives the portable parts of your macOS workspace one version-controlled home. Keep your configuration, dependency requirements, and reusable repository references together, then safely reproduce them on a new Mac or user account.
 
 This template deliberately does not include personal configuration. Create a private repository from it, then manually add your own files. The bootstrap never moves, edits, replaces, backs up, or updates an existing path on a machine.
 
