@@ -1,6 +1,7 @@
 # Workframe
 
 [![Validate Workframe](https://github.com/lc-rezende/Workframe/actions/workflows/validate.yml/badge.svg)](https://github.com/lc-rezende/Workframe/actions/workflows/validate.yml)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20Workframe-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/lrezende)
 
 > Version your Mac workspace once. Reproduce it anywhere.
 
