@@ -12,11 +12,11 @@ permissions:
 jobs:
   bootstrap:
     name: Bootstrap validation
-    runs-on: macos-latest
+    runs-on: macos-15-intel
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Run functional bootstrap tests
         run: bash tests/bootstrap_test.sh
