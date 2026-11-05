@@ -8,7 +8,7 @@ This template deliberately does not include personal configuration. Create a pri
 
 | Path | Purpose |
 | --- | --- |
-| `home/` | Files and directories to link directly under `$HOME`, such as `.zshrc` and `.profile`. |
+| `home/` | Files and directories to link directly under `$HOME`, such as `.zshrc`. |
 | `config/` | Files and directories to link under `$HOME/.config`. |
 | `manifests/links.conf` | Explicit mapping from a repository source to its destination under `$HOME`. |
 | `manifests/dependencies.conf` | Tools and applications to validate and document. |
