@@ -1,8 +1,10 @@
-# Reproducible Workspace Template
+# Workframe
 
-[![Validate Template](https://github.com/lc-rezende/workspace/actions/workflows/validate.yml/badge.svg)](https://github.com/lc-rezende/workspace/actions/workflows/validate.yml)
+[![Validate Workframe](https://github.com/lc-rezende/Workframe/actions/workflows/validate.yml/badge.svg)](https://github.com/lc-rezende/Workframe/actions/workflows/validate.yml)
 
-A safe, macOS-first template for versioning dotfiles, application configuration, dependency requirements, and references to reusable repositories.
+> Version your Mac workspace once. Reproduce it anywhere.
+
+A macOS workspace template and bootstrap utility for reproducing your setup on any new Mac or user account.
 
 This template deliberately does not include personal configuration. Create a private repository from it, then manually add your own files. The bootstrap never moves, edits, replaces, backs up, or updates an existing path on a machine.
 

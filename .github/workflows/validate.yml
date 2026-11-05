@@ -1,4 +1,4 @@
-name: Validate Template
+name: Validate Workframe
 
 on:
   pull_request:
