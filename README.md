@@ -1,15 +1,15 @@
-# Reproducible Workspace
+# Reproducible Workspace Template
 
-This repository is the source of truth for the portable parts of a macOS workspace: shell dotfiles, application configuration, dependency requirements, and references to reusable repositories.
+A safe, macOS-first template for versioning dotfiles, application configuration, dependency requirements, and references to reusable repositories.
 
-It is deliberately conservative. It never moves, edits, replaces, backs up, or updates an existing path on a machine. You manually add your own configuration files to this repository; the bootstrap only creates a symlink or clones an external repository when its destination does not yet exist.
+This template deliberately does not include personal configuration. Create a private repository from it, then manually add your own files. The bootstrap never moves, edits, replaces, backs up, or updates an existing path on a machine.
 
 ## Repository layout
 
 | Path | Purpose |
 | --- | --- |
 | `home/` | Files and directories to link directly under `$HOME`, such as `.zshrc` and `.profile`. |
-| `config/` | Files and directories to link under `$HOME/.config`, such as Starship configuration. |
+| `config/` | Files and directories to link under `$HOME/.config`. |
 | `manifests/links.conf` | Explicit mapping from a repository source to its destination under `$HOME`. |
 | `manifests/dependencies.conf` | Tools and applications to validate and document. |
 | `manifests/repositories.conf` | Reusable repositories to clone into `~/workspace`. |
@@ -21,7 +21,7 @@ It is deliberately conservative. It never moves, edits, replaces, backs up, or u
 - Bash
 - Git
 
-Homebrew is optional. The check command reports whether it is available and prints the installation hint recorded for missing optional dependencies.
+Homebrew is optional. The template validates Git only by default; add your own optional tools to the dependency manifest.
 
 ## Add a configuration item
 
@@ -37,8 +37,6 @@ Homebrew is optional. The check command reports whether it is available and prin
 
 The first field is a repository-relative source path. The second is a path relative to `$HOME`. Absolute paths and parent-directory traversal are rejected.
 
-For Herdr, its portable configuration belongs in `config/herdr/config.toml` and should be linked to `.config/herdr/config.toml`. Herdr reads this file on macOS and Linux. Install the terminal application with `brew install herdr`.
-
 ## Commands
 
 ```sh
@@ -49,7 +47,7 @@ For Herdr, its portable configuration belongs in `config/herdr/config.toml` and 
 
 - `--check` is read-only. It validates macOS, Git, Homebrew, and declared dependencies.
 - `--link` creates only missing destination symlinks and accepts an already-correct link without changing it. It stops before changing anything when a listed destination exists but is not the expected link, or when a source is missing.
-- `--repos` clones only missing repositories from `manifests/repositories.tsv` into `~/workspace`. It does not fetch, pull, reset, or otherwise change an existing directory or repository.
+- `--repos` clones only missing repositories from `manifests/repositories.conf` into `~/workspace`. It does not fetch, pull, reset, or otherwise change an existing directory or repository.
 
 Run one action at a time. Use `--help` to print the command reference.
 
@@ -66,6 +64,26 @@ kind | name | check | installation_hint
 - `manual`: reported as informational because no reliable local check is defined; set `check` to `-`.
 
 The manifest is intentionally not an installer. It gives each machine a reproducible requirements list without changing its package state.
+
+## Optional tool examples
+
+Add only the tools you use. For example:
+
+```text
+# manifests/dependencies.conf
+cli | starship | starship | brew install starship
+cli | herdr | herdr | brew install herdr
+app | Visual Studio Code | /Applications/Visual Studio Code.app | brew install --cask visual-studio-code
+app | iTerm | /Applications/iTerm.app | brew install --cask iterm2
+```
+
+```text
+# manifests/links.conf
+config/starship.toml | .config/starship.toml
+config/herdr/config.toml | .config/herdr/config.toml
+```
+
+The sources in those examples must be manually added to this repository before running `--link`.
 
 ## External repositories
 
@@ -90,6 +108,16 @@ External repositories remain independent Git repositories. This workspace reposi
 - Commit safe templates for those files as `.env.example` or `.env.<resource>.example`; leave secrets and real values out of every template.
 - Resolve every destination conflict manually. The bootstrap will not rename or back up an existing item for you.
 - Review `git status` before committing configuration changes.
+
+## Create your private workspace
+
+Use GitHub's **Use this template** action to create a private repository. Keep personal dotfiles, private repository references, and real environment values only in that private repository. The public template should contain only generic tooling, documentation, and safe examples.
+
+To adopt public-template improvements later, add this repository as an `upstream` remote in your private repository and merge or cherry-pick changes deliberately after reviewing them.
+
+## Contributing
+
+Contributions should improve the generic template without adding personal configuration, credentials, user-specific paths, or private repository URLs. Test the bootstrap commands and keep documentation in English before opening a pull request.
 
 ## Extending the workspace
 
