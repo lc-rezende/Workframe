@@ -119,6 +119,16 @@ To adopt public-template improvements later, add this repository as an `upstream
 
 Contributions should improve the generic template without adding personal configuration, credentials, user-specific paths, or private repository URLs. Test the bootstrap commands and keep documentation in English before opening a pull request.
 
+## Continuous integration
+
+GitHub Actions runs the functional bootstrap test suite on macOS for every pull request and every push to `main`. The suite validates shell syntax, manifest parsing, safe link creation, idempotent links, conflict protection, repository cloning, and existing-destination protection.
+
+Run the same checks locally with:
+
+```sh
+bash tests/bootstrap_test.sh
+```
+
 ## Extending the workspace
 
 When adding a new tool, add its portable configuration manually under `home/` or `config/`, declare its link in `links.conf`, declare its validation/install hint in `dependencies.conf`, and document any tool-specific manual setup in this README or a dedicated English document.

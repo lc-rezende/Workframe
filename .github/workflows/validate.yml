@@ -1,0 +1,22 @@
+name: Validate Template
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: Bootstrap validation
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run functional bootstrap tests
+        run: bash tests/bootstrap_test.sh

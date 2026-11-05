@@ -18,7 +18,7 @@ Usage: scripts/bootstrap.sh <action>
 
 Actions:
   --check  Validate macOS, Git, Homebrew, and declared dependencies. Read-only.
-  --link   Create symlinks declared in manifests/links.tsv only when absent.
+  --link   Create symlinks declared in manifests/links.conf only when absent.
   --repos  Clone declared repositories into ~/workspace only when absent.
   --help   Show this help text.
 EOF
