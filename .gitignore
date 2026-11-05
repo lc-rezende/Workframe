@@ -1,0 +1,15 @@
+# Secrets and local machine overrides must never be committed.
+# Version safe templates such as .env.example and .env.opencode.example.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.secret
+*.key
+*.pem
+
+# Local bootstrap state and temporary files.
+.workspace-local/
+*.bak
+*.tmp
+.DS_Store
