@@ -18,7 +18,7 @@ Usage: scripts/bootstrap.sh <action>
 
 Actions:
   --check  Validate macOS, Git, Homebrew, and declared dependencies. Read-only.
-  --link   Create symlinks declared in manifests/links.conf only when absent.
+  --link   Create symlinks declared in manifests/links.conf.
   --repos  Clone declared repositories into ~/workspace only when absent.
   --help   Show this help text.
 EOF
@@ -30,9 +30,21 @@ error() { printf 'ERROR: %s\n' "$*" >&2; }
 
 is_safe_relative_path() {
   case "$1" in
-    ''|/*|../*|*/../*|*/..|.) return 1 ;;
+    ''|/*|../*|*/../*|*/..|.|*/./*|*/.) return 1 ;;
     *) return 0 ;;
   esac
+}
+
+is_safe_absolute_destination() {
+  case "$1" in
+    ''|/|*/../*|*/..|*/./*|*/.) return 1 ;;
+    /*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_managed_source_path() {
+  [[ "$1" == managed/* ]] && is_safe_relative_path "$1"
 }
 
 trim_whitespace() {
@@ -47,6 +59,24 @@ is_expected_link() {
   local source="$2"
 
   [[ -L "${destination}" ]] && [[ "$(readlink "${destination}")" == "${source}" ]]
+}
+
+is_interactive_terminal() {
+  [[ -t 0 && -t 1 ]]
+}
+
+next_backup_path() {
+  local destination="$1"
+  local timestamp="$2"
+  local candidate="${destination}.${timestamp}.bak"
+  local suffix=1
+
+  while [[ -e "${candidate}" || -L "${candidate}" ]]; do
+    candidate="${destination}.${timestamp}.bak.${suffix}"
+    suffix=$((suffix + 1))
+  done
+
+  printf '%s' "${candidate}"
 }
 
 require_macos() {
@@ -122,13 +152,17 @@ run_check() {
 }
 
 run_links() {
-  local source_rel destination_rel extra source destination parent declared=0
+  local source_rel destination extra source parent declared=0
+  local i j action backup timestamp
+  local -a sources=()
+  local -a destinations=()
+  local -a actions=()
 
   require_macos
 
-  while IFS='|' read -r source_rel destination_rel extra; do
+  while IFS='|' read -r source_rel destination extra; do
     source_rel="$(trim_whitespace "${source_rel}")"
-    destination_rel="$(trim_whitespace "${destination_rel}")"
+    destination="$(trim_whitespace "${destination}")"
     extra="$(trim_whitespace "${extra}")"
     [[ -z "${source_rel}" || "${source_rel}" == \#* ]] && continue
     declared=$((declared + 1))
@@ -137,24 +171,26 @@ run_links() {
       error "Invalid link manifest row for '${source_rel}': use two pipe-separated fields."
       return 1
     fi
-    if ! is_safe_relative_path "${source_rel}" || ! is_safe_relative_path "${destination_rel}"; then
-      error "Unsafe link manifest row: ${source_rel} -> ${destination_rel}"
+    if ! is_managed_source_path "${source_rel}"; then
+      error "Link sources must be safe paths below managed/: ${source_rel}"
+      return 1
+    fi
+    if ! is_safe_absolute_destination "${destination}"; then
+      error "Link destinations must be safe absolute paths: ${destination}"
       return 1
     fi
 
     source="${REPO_ROOT}/${source_rel}"
-    destination="${HOME}/${destination_rel}"
     if [[ ! -e "${source}" && ! -L "${source}" ]]; then
       error "Source does not exist: ${source_rel}"
       return 1
     fi
-    if is_expected_link "${destination}" "${source}"; then
-      continue
-    fi
-    if [[ -e "${destination}" || -L "${destination}" ]]; then
-      error "Destination already exists and will not be changed: ${destination}"
+    if [[ -L "${source}" ]]; then
+      error "Link sources must not be symlinks: ${source_rel}"
       return 1
     fi
+    sources+=("${source}")
+    destinations+=("${destination}")
   done < "${LINKS_MANIFEST}"
 
   if [[ "${declared}" -eq 0 ]]; then
@@ -162,22 +198,86 @@ run_links() {
     return 0
   fi
 
-  while IFS='|' read -r source_rel destination_rel extra; do
-    source_rel="$(trim_whitespace "${source_rel}")"
-    destination_rel="$(trim_whitespace "${destination_rel}")"
-    extra="$(trim_whitespace "${extra}")"
-    [[ -z "${source_rel}" || "${source_rel}" == \#* ]] && continue
-    source="${REPO_ROOT}/${source_rel}"
-    destination="${HOME}/${destination_rel}"
+  for i in "${!destinations[@]}"; do
+    for j in "${!destinations[@]}"; do
+      [[ "${j}" -lt "${i}" ]] || continue
+      if [[ "${destinations[${i}]}" == "${destinations[${j}]}" ]]; then
+        error "Duplicate link destination: ${destinations[${i}]}"
+        return 1
+      fi
+    done
+  done
+
+  for i in "${!destinations[@]}"; do
+    destination="${destinations[${i}]}"
+    source="${sources[${i}]}"
     if is_expected_link "${destination}" "${source}"; then
-      info "Already linked ${destination_rel}"
+      actions[${i}]='skip'
       continue
     fi
+    if [[ ! -e "${destination}" && ! -L "${destination}" ]]; then
+      actions[${i}]='link'
+      continue
+    fi
+    if ! is_interactive_terminal; then
+      error "Destination already exists; rerun interactively to choose a resolution: ${destination}"
+      return 1
+    fi
+
+    while true; do
+      printf 'Conflict at %s\n[a]bort, [b]ack up and link, or [o]verride and link? ' "${destination}" >&2
+      read -r action
+      case "${action}" in
+        a|A|abort|Abort)
+          info 'Linking aborted; no changes were made.'
+          return 1
+          ;;
+        b|B|backup|Backup)
+          actions[${i}]='backup'
+          break
+          ;;
+        o|O|override|Override)
+          actions[${i}]='override'
+          break
+          ;;
+        *)
+          warn 'Choose a, b, or o.'
+          ;;
+      esac
+    done
+  done
+
+  timestamp="$(date '+%Y%m%d-%H%M%S')"
+  for i in "${!destinations[@]}"; do
+    destination="${destinations[${i}]}"
+    source="${sources[${i}]}"
+    action="${actions[${i}]}"
+    case "${action}" in
+      skip)
+        info "Already linked ${destination}"
+        continue
+        ;;
+      backup)
+        backup="$(next_backup_path "${destination}" "${timestamp}")"
+        mv -- "${destination}" "${backup}"
+        info "Backed up ${destination} to ${backup}"
+        ;;
+      override)
+        rm -rf -- "${destination}"
+        info "Overrode ${destination}"
+        ;;
+      link)
+        ;;
+      *)
+        error "Internal error: no action selected for ${destination}"
+        return 1
+        ;;
+    esac
     parent="$(dirname "${destination}")"
     mkdir -p "${parent}"
     ln -s "${source}" "${destination}"
-    info "Linked ${destination_rel}"
-  done < "${LINKS_MANIFEST}"
+    info "Linked ${destination}"
+  done
 }
 
 run_repositories() {

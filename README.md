@@ -15,15 +15,14 @@ So the rebuild begins: install a tool, search for a setting, copy a file, notice
 
 Workframe gives the portable parts of your macOS workspace one version-controlled home. Keep your configuration, dependency requirements, and reusable repository references together, then safely reproduce them on a new Mac or user account.
 
-This template deliberately does not include personal configuration. Create a private repository from it, then manually add your own files. The bootstrap never moves, edits, replaces, backs up, or updates an existing path on a machine.
+This template deliberately does not include personal configuration. Create a private repository from it, then manually add your own files. The bootstrap does not move or edit a managed source. It validates every link before making changes and handles an existing destination only with an explicit choice during an interactive link run.
 
 ## Repository layout
 
 | Path | Purpose |
 | --- | --- |
-| `home/` | Files and directories to link directly under `$HOME`, such as `.zshrc`. |
-| `config/` | Files and directories to link under `$HOME/.config`. |
-| `manifests/links.conf` | Explicit mapping from a repository source to its destination under `$HOME`. |
+| `managed/` | The required source root for files and directories managed by Workframe. |
+| `manifests/links.conf` | Explicit mapping from a `managed/` source to an absolute local destination. |
 | `manifests/dependencies.conf` | Tools and applications to validate and document. |
 | `manifests/repositories.conf` | Reusable repositories to clone into `~/workspace`. |
 | `scripts/bootstrap.sh` | Safe validation, linking, and repository-cloning entry point. |
@@ -38,17 +37,16 @@ Homebrew is optional. The template validates Git only by default; add your own o
 
 ## Add a configuration item
 
-1. Manually copy or create the configuration inside `home/` or `config/`.
+1. Manually copy or create the configuration anywhere below `managed/`.
 2. Add one pipe-separated row to `manifests/links.conf`:
 
    ```text
-   config/starship.toml | .config/starship.toml
+   managed/starship/starship.toml | /Users/your-user/.config/starship.toml
    ```
 
-3. Confirm that the target path does not already exist on the machine.
-4. Run `./scripts/bootstrap.sh --link`.
+3. Run `./scripts/bootstrap.sh --link`.
 
-The first field is a repository-relative source path. The second is a path relative to `$HOME`. Absolute paths and parent-directory traversal are rejected.
+The first field must be a repository-relative path beginning with `managed/`. The second field must be an absolute destination path. Parent-directory traversal is rejected in both fields.
 
 ## Commands
 
@@ -59,7 +57,7 @@ The first field is a repository-relative source path. The second is a path relat
 ```
 
 - `--check` is read-only. It validates macOS, Git, Homebrew, and declared dependencies.
-- `--link` creates only missing destination symlinks and accepts an already-correct link without changing it. It stops before changing anything when a listed destination exists but is not the expected link, or when a source is missing.
+- `--link` creates destination symlinks from `managed/` sources and accepts an already-correct link without changing it. It validates the complete manifest before changing anything, then interactively resolves each existing destination before making changes.
 - `--repos` clones only missing repositories from `manifests/repositories.conf` into `~/workspace`. It does not fetch, pull, reset, or otherwise change an existing directory or repository.
 
 Run one action at a time. Use `--help` to print the command reference.
@@ -92,8 +90,8 @@ app | iTerm | /Applications/iTerm.app | brew install --cask iterm2
 
 ```text
 # manifests/links.conf
-config/starship.toml | .config/starship.toml
-config/herdr/config.toml | .config/herdr/config.toml
+managed/starship/starship.toml | /Users/your-user/.config/starship.toml
+managed/herdr/config.toml | /Users/your-user/.config/herdr/config.toml
 ```
 
 The sources in those examples must be manually added to this repository before running `--link`.
@@ -119,7 +117,7 @@ External repositories remain independent Git repositories. This workspace reposi
 - Never commit API keys, tokens, private keys, credentials, or machine-specific secrets.
 - Put local-only values in ignored files such as `.env`, `.env.<resource>`, or `.workspace-local/`.
 - Commit safe templates for those files as `.env.example` or `.env.<resource>.example`; leave secrets and real values out of every template.
-- Resolve every destination conflict manually. The bootstrap will not rename or back up an existing item for you.
+- For every existing destination, an interactive link run requires an explicit choice to abort, back it up in place, or override it. A backup is named beside the original as `<name>.<timestamp>.bak`. A non-interactive run aborts safely without modifying anything.
 - Review `git status` before committing configuration changes.
 
 ## Create your private workspace
@@ -134,7 +132,7 @@ Contributions should improve the generic template without adding personal config
 
 ## Continuous integration
 
-GitHub Actions runs the functional bootstrap test suite on macOS for every pull request and every push to `main`. The suite validates shell syntax, manifest parsing, safe link creation, idempotent links, conflict protection, repository cloning, and existing-destination protection.
+GitHub Actions runs the functional bootstrap test suite on macOS for every pull request and every push to `main`. The suite validates shell syntax, manifest parsing, safe link creation, idempotent links, explicit conflict handling, repository cloning, and existing-destination protection.
 
 Run the same checks locally with:
 
@@ -144,4 +142,4 @@ bash tests/bootstrap_test.sh
 
 ## Extending the workspace
 
-When adding a new tool, add its portable configuration manually under `home/` or `config/`, declare its link in `links.conf`, declare its validation/install hint in `dependencies.conf`, and document any tool-specific manual setup in this README or a dedicated English document.
+When adding a new tool, add its portable configuration manually below `managed/`, declare its absolute destination in `links.conf`, declare its validation/install hint in `dependencies.conf`, and document any tool-specific manual setup in this README or a dedicated English document.
