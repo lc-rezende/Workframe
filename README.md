@@ -15,7 +15,7 @@ So the rebuild begins: install a tool, search for a setting, copy a file, notice
 
 Workframe gives the portable parts of your macOS workspace one version-controlled home. Keep your configuration, dependency requirements, and reusable repository references together, then safely reproduce them on a new Mac or user account.
 
-This template deliberately does not include personal configuration. Create a private repository from it, then manually add your own files. The bootstrap never moves, edits, replaces, backs up, or updates an existing path on a machine.
+This template deliberately does not include personal configuration. Create a private repository from it, then manually add your own files. The bootstrap does not move or edit a managed source. It validates every link before making changes and handles an existing destination only with an explicit choice during an interactive link run.
 
 ## Repository layout
 
@@ -57,7 +57,7 @@ The first field must be a repository-relative path beginning with `managed/`. Th
 ```
 
 - `--check` is read-only. It validates macOS, Git, Homebrew, and declared dependencies.
-- `--link` creates destination symlinks from `managed/` sources and accepts an already-correct link without changing it. It validates the complete manifest before changing anything.
+- `--link` creates destination symlinks from `managed/` sources and accepts an already-correct link without changing it. It validates the complete manifest before changing anything, then interactively resolves each existing destination before making changes.
 - `--repos` clones only missing repositories from `manifests/repositories.conf` into `~/workspace`. It does not fetch, pull, reset, or otherwise change an existing directory or repository.
 
 Run one action at a time. Use `--help` to print the command reference.
@@ -117,7 +117,7 @@ External repositories remain independent Git repositories. This workspace reposi
 - Never commit API keys, tokens, private keys, credentials, or machine-specific secrets.
 - Put local-only values in ignored files such as `.env`, `.env.<resource>`, or `.workspace-local/`.
 - Commit safe templates for those files as `.env.example` or `.env.<resource>.example`; leave secrets and real values out of every template.
-- Resolve every destination conflict manually. The bootstrap will not rename or back up an existing item for you.
+- For every existing destination, an interactive link run requires an explicit choice to abort, back it up in place, or override it. A backup is named beside the original as `<name>.<timestamp>.bak`. A non-interactive run aborts safely without modifying anything.
 - Review `git status` before committing configuration changes.
 
 ## Create your private workspace
@@ -132,7 +132,7 @@ Contributions should improve the generic template without adding personal config
 
 ## Continuous integration
 
-GitHub Actions runs the functional bootstrap test suite on macOS for every pull request and every push to `main`. The suite validates shell syntax, manifest parsing, safe link creation, idempotent links, conflict protection, repository cloning, and existing-destination protection.
+GitHub Actions runs the functional bootstrap test suite on macOS for every pull request and every push to `main`. The suite validates shell syntax, manifest parsing, safe link creation, idempotent links, explicit conflict handling, repository cloning, and existing-destination protection.
 
 Run the same checks locally with:
 

@@ -61,6 +61,24 @@ is_expected_link() {
   [[ -L "${destination}" ]] && [[ "$(readlink "${destination}")" == "${source}" ]]
 }
 
+is_interactive_terminal() {
+  [[ -t 0 && -t 1 ]]
+}
+
+next_backup_path() {
+  local destination="$1"
+  local timestamp="$2"
+  local candidate="${destination}.${timestamp}.bak"
+  local suffix=1
+
+  while [[ -e "${candidate}" || -L "${candidate}" ]]; do
+    candidate="${destination}.${timestamp}.bak.${suffix}"
+    suffix=$((suffix + 1))
+  done
+
+  printf '%s' "${candidate}"
+}
+
 require_macos() {
   if [[ "$(uname -s)" != "Darwin" ]]; then
     error "This workspace bootstrap currently supports macOS only."
@@ -134,7 +152,11 @@ run_check() {
 }
 
 run_links() {
-  local source_rel destination extra source destination parent declared=0
+  local source_rel destination extra source parent declared=0
+  local i j action backup timestamp
+  local -a sources=()
+  local -a destinations=()
+  local -a actions=()
 
   require_macos
 
@@ -167,13 +189,8 @@ run_links() {
       error "Link sources must not be symlinks: ${source_rel}"
       return 1
     fi
-    if is_expected_link "${destination}" "${source}"; then
-      continue
-    fi
-    if [[ -e "${destination}" || -L "${destination}" ]]; then
-      error "Destination already exists and will not be changed: ${destination}"
-      return 1
-    fi
+    sources+=("${source}")
+    destinations+=("${destination}")
   done < "${LINKS_MANIFEST}"
 
   if [[ "${declared}" -eq 0 ]]; then
@@ -181,21 +198,86 @@ run_links() {
     return 0
   fi
 
-  while IFS='|' read -r source_rel destination extra; do
-    source_rel="$(trim_whitespace "${source_rel}")"
-    destination="$(trim_whitespace "${destination}")"
-    extra="$(trim_whitespace "${extra}")"
-    [[ -z "${source_rel}" || "${source_rel}" == \#* ]] && continue
-    source="${REPO_ROOT}/${source_rel}"
+  for i in "${!destinations[@]}"; do
+    for j in "${!destinations[@]}"; do
+      [[ "${j}" -lt "${i}" ]] || continue
+      if [[ "${destinations[${i}]}" == "${destinations[${j}]}" ]]; then
+        error "Duplicate link destination: ${destinations[${i}]}"
+        return 1
+      fi
+    done
+  done
+
+  for i in "${!destinations[@]}"; do
+    destination="${destinations[${i}]}"
+    source="${sources[${i}]}"
     if is_expected_link "${destination}" "${source}"; then
-      info "Already linked ${destination}"
+      actions[${i}]='skip'
       continue
     fi
+    if [[ ! -e "${destination}" && ! -L "${destination}" ]]; then
+      actions[${i}]='link'
+      continue
+    fi
+    if ! is_interactive_terminal; then
+      error "Destination already exists; rerun interactively to choose a resolution: ${destination}"
+      return 1
+    fi
+
+    while true; do
+      printf 'Conflict at %s\n[a]bort, [b]ack up and link, or [o]verride and link? ' "${destination}" >&2
+      read -r action
+      case "${action}" in
+        a|A|abort|Abort)
+          info 'Linking aborted; no changes were made.'
+          return 1
+          ;;
+        b|B|backup|Backup)
+          actions[${i}]='backup'
+          break
+          ;;
+        o|O|override|Override)
+          actions[${i}]='override'
+          break
+          ;;
+        *)
+          warn 'Choose a, b, or o.'
+          ;;
+      esac
+    done
+  done
+
+  timestamp="$(date '+%Y%m%d-%H%M%S')"
+  for i in "${!destinations[@]}"; do
+    destination="${destinations[${i}]}"
+    source="${sources[${i}]}"
+    action="${actions[${i}]}"
+    case "${action}" in
+      skip)
+        info "Already linked ${destination}"
+        continue
+        ;;
+      backup)
+        backup="$(next_backup_path "${destination}" "${timestamp}")"
+        mv -- "${destination}" "${backup}"
+        info "Backed up ${destination} to ${backup}"
+        ;;
+      override)
+        rm -rf -- "${destination}"
+        info "Overrode ${destination}"
+        ;;
+      link)
+        ;;
+      *)
+        error "Internal error: no action selected for ${destination}"
+        return 1
+        ;;
+    esac
     parent="$(dirname "${destination}")"
     mkdir -p "${parent}"
     ln -s "${source}" "${destination}"
     info "Linked ${destination}"
-  done < "${LINKS_MANIFEST}"
+  done
 }
 
 run_repositories() {
