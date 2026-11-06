@@ -42,14 +42,14 @@ new_fixture() {
   local name="$1"
   local fixture="${TEST_ROOT}/${name}"
 
-  mkdir -p "${fixture}/home" "${fixture}/config" "${fixture}/manifests" "${fixture}/scripts"
+  mkdir -p "${fixture}/managed" "${fixture}/manifests" "${fixture}/scripts"
   fixture="$(cd "${fixture}" && pwd -P)"
   cp "${BOOTSTRAP}" "${fixture}/scripts/bootstrap.sh"
   chmod +x "${fixture}/scripts/bootstrap.sh"
-  printf '%s\n' '# source_path | destination_relative_to_home' > "${fixture}/manifests/links.conf"
+  printf '%s\n' '# source_path_below_managed | absolute_destination_path' > "${fixture}/manifests/links.conf"
   printf '%s\n' '# kind | name | check | installation_hint' > "${fixture}/manifests/dependencies.conf"
   printf '%s\n' '# name | url | destination_relative_to_workspace' > "${fixture}/manifests/repositories.conf"
-  printf '%s\n' 'fixture source' > "${fixture}/home/source-file"
+  printf '%s\n' 'fixture source' > "${fixture}/managed/source-file"
   printf '%s\n' "${fixture}"
 }
 
@@ -72,31 +72,38 @@ assert_file_contains "${TEST_ROOT}/default-repos.out" 'No external repositories 
 pass 'default template validation'
 
 link_fixture="$(new_fixture link)"
-printf '%s\n' ' home/source-file | .linked-source ' >> "${link_fixture}/manifests/links.conf"
-HOME="${link_fixture}/test-home" "${link_fixture}/scripts/bootstrap.sh" --link > "${link_fixture}/first-link.out"
-test -L "${link_fixture}/test-home/.linked-source" || fail 'Expected link destination to be a symlink.'
-test "$(readlink "${link_fixture}/test-home/.linked-source")" = "${link_fixture}/home/source-file" || fail 'Link target did not match fixture source.'
-assert_file_contains "${link_fixture}/first-link.out" 'Linked .linked-source'
-HOME="${link_fixture}/test-home" "${link_fixture}/scripts/bootstrap.sh" --link > "${link_fixture}/second-link.out"
-assert_file_contains "${link_fixture}/second-link.out" 'Already linked .linked-source'
+link_destination="${link_fixture}/test-home/nested/.linked-source"
+printf '%s | %s\n' ' managed/source-file ' "${link_destination}" >> "${link_fixture}/manifests/links.conf"
+"${link_fixture}/scripts/bootstrap.sh" --link > "${link_fixture}/first-link.out"
+test -L "${link_destination}" || fail 'Expected link destination to be a symlink.'
+test "$(readlink "${link_destination}")" = "${link_fixture}/managed/source-file" || fail 'Link target did not match fixture source.'
+assert_file_contains "${link_fixture}/first-link.out" "Linked ${link_destination}"
+"${link_fixture}/scripts/bootstrap.sh" --link > "${link_fixture}/second-link.out"
+assert_file_contains "${link_fixture}/second-link.out" "Already linked ${link_destination}"
 pass 'link creation and idempotency'
 
 conflict_fixture="$(new_fixture conflict)"
-printf '%s\n' 'home/source-file | .linked-source' >> "${conflict_fixture}/manifests/links.conf"
+conflict_destination="${conflict_fixture}/test-home/.linked-source"
+printf '%s | %s\n' 'managed/source-file' "${conflict_destination}" >> "${conflict_fixture}/manifests/links.conf"
 mkdir -p "${conflict_fixture}/test-home"
-printf '%s\n' 'keep this file' > "${conflict_fixture}/test-home/.linked-source"
-assert_failure env HOME="${conflict_fixture}/test-home" "${conflict_fixture}/scripts/bootstrap.sh" --link
-test ! -L "${conflict_fixture}/test-home/.linked-source" || fail 'Existing file was replaced with a link.'
-assert_file_contains "${conflict_fixture}/test-home/.linked-source" 'keep this file'
+printf '%s\n' 'keep this file' > "${conflict_destination}"
+assert_failure "${conflict_fixture}/scripts/bootstrap.sh" --link
+test ! -L "${conflict_destination}" || fail 'Existing file was replaced with a link.'
+assert_file_contains "${conflict_destination}" 'keep this file'
 pass 'link conflict protection'
 
 invalid_fixture="$(new_fixture invalid)"
-printf '%s\n' 'missing-file | .missing-target' >> "${invalid_fixture}/manifests/links.conf"
-assert_failure env HOME="${invalid_fixture}/test-home" "${invalid_fixture}/scripts/bootstrap.sh" --link
+invalid_destination="${invalid_fixture}/test-home/.missing-target"
+printf '%s | %s\n' 'managed/missing-file' "${invalid_destination}" >> "${invalid_fixture}/manifests/links.conf"
+assert_failure "${invalid_fixture}/scripts/bootstrap.sh" --link
 test ! -e "${invalid_fixture}/test-home/.missing-target" || fail 'Missing source created a destination.'
-printf '%s\n' 'home/source-file | .target | unexpected' > "${invalid_fixture}/manifests/links.conf"
-assert_failure env HOME="${invalid_fixture}/test-home" "${invalid_fixture}/scripts/bootstrap.sh" --link
+printf '%s\n' "managed/source-file | ${invalid_fixture}/test-home/.target | unexpected" > "${invalid_fixture}/manifests/links.conf"
+assert_failure "${invalid_fixture}/scripts/bootstrap.sh" --link
 test ! -e "${invalid_fixture}/test-home/.target" || fail 'Malformed manifest created a destination.'
+printf '%s\n' 'home/source-file | /tmp/not-allowed' > "${invalid_fixture}/manifests/links.conf"
+assert_failure "${invalid_fixture}/scripts/bootstrap.sh" --link
+printf '%s\n' 'managed/source-file | relative-target' > "${invalid_fixture}/manifests/links.conf"
+assert_failure "${invalid_fixture}/scripts/bootstrap.sh" --link
 pass 'link manifest validation'
 
 repo_fixture="$(new_fixture repositories)"

@@ -18,7 +18,7 @@ Usage: scripts/bootstrap.sh <action>
 
 Actions:
   --check  Validate macOS, Git, Homebrew, and declared dependencies. Read-only.
-  --link   Create symlinks declared in manifests/links.conf only when absent.
+  --link   Create symlinks declared in manifests/links.conf.
   --repos  Clone declared repositories into ~/workspace only when absent.
   --help   Show this help text.
 EOF
@@ -30,9 +30,21 @@ error() { printf 'ERROR: %s\n' "$*" >&2; }
 
 is_safe_relative_path() {
   case "$1" in
-    ''|/*|../*|*/../*|*/..|.) return 1 ;;
+    ''|/*|../*|*/../*|*/..|.|*/./*|*/.) return 1 ;;
     *) return 0 ;;
   esac
+}
+
+is_safe_absolute_destination() {
+  case "$1" in
+    ''|/|*/../*|*/..|*/./*|*/.) return 1 ;;
+    /*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_managed_source_path() {
+  [[ "$1" == managed/* ]] && is_safe_relative_path "$1"
 }
 
 trim_whitespace() {
@@ -122,13 +134,13 @@ run_check() {
 }
 
 run_links() {
-  local source_rel destination_rel extra source destination parent declared=0
+  local source_rel destination extra source destination parent declared=0
 
   require_macos
 
-  while IFS='|' read -r source_rel destination_rel extra; do
+  while IFS='|' read -r source_rel destination extra; do
     source_rel="$(trim_whitespace "${source_rel}")"
-    destination_rel="$(trim_whitespace "${destination_rel}")"
+    destination="$(trim_whitespace "${destination}")"
     extra="$(trim_whitespace "${extra}")"
     [[ -z "${source_rel}" || "${source_rel}" == \#* ]] && continue
     declared=$((declared + 1))
@@ -137,15 +149,22 @@ run_links() {
       error "Invalid link manifest row for '${source_rel}': use two pipe-separated fields."
       return 1
     fi
-    if ! is_safe_relative_path "${source_rel}" || ! is_safe_relative_path "${destination_rel}"; then
-      error "Unsafe link manifest row: ${source_rel} -> ${destination_rel}"
+    if ! is_managed_source_path "${source_rel}"; then
+      error "Link sources must be safe paths below managed/: ${source_rel}"
+      return 1
+    fi
+    if ! is_safe_absolute_destination "${destination}"; then
+      error "Link destinations must be safe absolute paths: ${destination}"
       return 1
     fi
 
     source="${REPO_ROOT}/${source_rel}"
-    destination="${HOME}/${destination_rel}"
     if [[ ! -e "${source}" && ! -L "${source}" ]]; then
       error "Source does not exist: ${source_rel}"
+      return 1
+    fi
+    if [[ -L "${source}" ]]; then
+      error "Link sources must not be symlinks: ${source_rel}"
       return 1
     fi
     if is_expected_link "${destination}" "${source}"; then
@@ -162,21 +181,20 @@ run_links() {
     return 0
   fi
 
-  while IFS='|' read -r source_rel destination_rel extra; do
+  while IFS='|' read -r source_rel destination extra; do
     source_rel="$(trim_whitespace "${source_rel}")"
-    destination_rel="$(trim_whitespace "${destination_rel}")"
+    destination="$(trim_whitespace "${destination}")"
     extra="$(trim_whitespace "${extra}")"
     [[ -z "${source_rel}" || "${source_rel}" == \#* ]] && continue
     source="${REPO_ROOT}/${source_rel}"
-    destination="${HOME}/${destination_rel}"
     if is_expected_link "${destination}" "${source}"; then
-      info "Already linked ${destination_rel}"
+      info "Already linked ${destination}"
       continue
     fi
     parent="$(dirname "${destination}")"
     mkdir -p "${parent}"
     ln -s "${source}" "${destination}"
-    info "Linked ${destination_rel}"
+    info "Linked ${destination}"
   done < "${LINKS_MANIFEST}"
 }
 
